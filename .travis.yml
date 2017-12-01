@@ -8,13 +8,28 @@ before_script:
   - cd "$VERSION/$VARIANT/"
   - image="$(awk 'toupper($1) == "FROM" { print $2; exit }' management/Dockerfile)"
 
+addons:
+  apt:
+    packages:
+    - jq
 
 script:
+  # Build and push image
   - docker login -u "$DOCKER_USERNAME" -p "$DOCKER_PASSWORD"
   - docker build -t "teknique/$image" teknique/
+  - rabbitmq_version=$(docker inspect "teknique/$image" | jq --raw-output '.[].ContainerConfig.Env[] | if contains("RABBITMQ_VERSION") then . else "" end' | sed '/^\s*$/d' | sed -r -e 's/.*\=(.*)$/\1/g')
+  - echo "${rabbitmq_version}"
+  - docker tag "teknique/${image}" "teknique/rabbitmq:${rabbitmq_version}"
   - docker push "teknique/${image}"
+  - docker push "teknique/rabbitmq:${rabbitmq_version}"
+
+  # Build and push management image
   - docker build -t "teknique/${image}-management" management/teknique/
+  - rabbitmq_version=$(docker inspect "teknique/$image" | jq --raw-output '.[].ContainerConfig.Env[] | if contains("RABBITMQ_VERSION") then . else "" end' | sed '/^\s*$/d' | sed -r -e 's/.*\=(.*)$/\1/g')
+  - echo "${rabbitmq_version}"
+  - docker tag "teknique/${image}-management" "teknique/rabbitmq:${rabbitmq_version}-management"
   - docker push "teknique/${image}-management"
+  - docker push "teknique/rabbitmq:${rabbitmq_version}-management"
 
 after_script:
   - docker images
